@@ -11,7 +11,7 @@
 #include <getopt.h>
 #include <math.h>
 
-// engenerring
+// enginerring
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
 
@@ -20,7 +20,7 @@
 using namespace std;
 // using namespace std::chrono;
 
-static volatile float refVolts = 5.0;
+static volatile float mcp3008RefVolts = 5.0;
 
 
 	// SPI Options
@@ -32,7 +32,7 @@ static volatile float refVolts = 5.0;
 
 int channelType = MCP3008_SINGLE;
 
-unsigned int readChannel(int channel)
+unsigned int readMCP3008Channel(int channel)
 {
     unsigned char buffer[3] = { 1, 0, 0 };
 	buffer[1] = (channelType + channel) << 4;
@@ -42,19 +42,19 @@ unsigned int readChannel(int channel)
 	return ((buffer[1] & 3) << 8) + buffer[2];   
 }
 
-float getVolts(int channel) {
-    auto bits = readChannel(channel);
-	return ((bits)*refVolts) / 1024.0;
+float getMCP3008Volts(int channel) {
+    auto bits = readMCP3008Channel(channel);
+	return ((bits)*mcp3008RefVolts) / 1024.0;
 }
 
 
-bool setup() {
+bool setupMCP3008() {
 
 
 	
 	if (int ret = wiringPiSetup()) {
 		fprintf(stderr, "Wiring Pi setup failed, ret=%d\n", ret);
-		exit(EXIT_FAILURE);
+		return false;
 	}
 
 	// The speed parameter is an integer in the range 500,000 through 32,000,000 and represents the SPI clock speed in Hz
@@ -63,9 +63,18 @@ bool setup() {
 	if ((spiHandle = wiringPiSPISetup(spiChannel, spiSpeed)) < 0)
 	{
 		fprintf(stderr, "opening SPI bus failed: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
+		return false;
 	}
 
+    double volts=0.0;
+    for (int i=0;i<MCP3008_CHANNELS;++i) {
+        volts+=getMCP3008Volts(i);
+    }
+
+    if (volts==0.0) {
+        fprintf(stderr, "mcp3008 not detected\n");
+        return false;
+    }
 
 // random number generator
 	int seed;
@@ -82,16 +91,17 @@ bool setup() {
 
 int main(int argc, char **argv)
 {
-	if (!setup()) {
+	if (!setupMCP3008()) {
 		printf("setup failed\n");
 		exit(2);
 	}
 
 
 
+
     while (true) {
         for (int ch=0; ch<MCP3008_CHANNELS; ++ch) {
-          printf("%d: %5.3f | ", ch, getVolts(ch));
+          printf("%d: %5.3f | ", ch, getMCP3008Volts(ch));
           delay(10);
         }
         printf("\r");
